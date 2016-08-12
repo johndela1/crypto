@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 
 def chunks(seq, size):
     return (seq[i:i+size] for i in range(0, len(seq), size))
@@ -54,6 +56,14 @@ def xor(s1, s2):
     return bytes(''.join('%0x' % (int(x, 16) ^ int(y, 16))
                           for x, y in zip(hex_iter(s1), hex_iter(s2))), 'ascii')
 
+def foo(seq):
+    length = len(seq)
+    for i in range(256):
+        try:
+            yield decode_16(xor(seq, ''.join(['%0x' % i] * length)))
+        except UnicodeEncodeError:
+            continue
+
 
 if __name__ == '__main__':
     base_16 = b'49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d'
@@ -67,3 +77,18 @@ if __name__ == '__main__':
     #plain = decode_16(base_16)
     #print('plain', plain)
     #print('b64', encode_64(plain))
+    encoded_hex = b'1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
+
+    print(
+        sorted(((e, str(e).count(' '))
+                for e in foo(encoded_hex)), key=lambda x: -x[1])[0])
+
+
+
+
+
+
+
+
+
+
