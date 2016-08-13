@@ -96,9 +96,10 @@ def key_length_guess(seq):
     for size in range(2, 10):
         s1 = seq[:size]
         s2 = seq[size:size*2]
-        dist = h_dist(s1, s2)
+        dist = h_dist(s1, s2) / size
         acc.append((dist, size))
-    return sorted(acc)[0][1]
+#    import pdb;pdb.set_trace()
+    return sorted(acc)[:2]
 
 def foo(seq):
     length = len(seq)
@@ -148,7 +149,7 @@ if __name__ == '__main__':
     enc_b64 = b'HUIfTQsPAh9PE048GmllH0kcDk4TAQsHThsBFkU2AB4BSWQgVB0dQzNTTmVS'
     bts = dec_64(enc_b64)
     #    print('decrypt', xor_repeat('ICE', cypher_text))
-    bts = xor_repeat('ICEMAN', b'Since we are all here working on the farm we will talk a lot.  This is a test of some new crypto system')
+    bts = xor_repeat('ICE', b'Since we are all here working on the farm we will talk a lot.  This is a test of some new crypto system')
 
     print('decrypt', xor_repeat('ICEMAN', bts))
     print(key_length_guess(bts))
