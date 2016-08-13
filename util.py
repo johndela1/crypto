@@ -8,8 +8,17 @@ def chunks(seq, size):
     return (seq[i:i+size] for i in range(0, len(seq), size))
 
 
+def chunks2(seq, size):
+    itt = iter(seq)
+    while(True):
+        acc = []
+        for e in range(size):
+            acc.append(chr(next(itt)))
+        yield bytes(''.join(acc), 'ascii')
+
+
 def enc_16(seq):
-    return ''.join([hex(c)[2:] for c in seq])
+    return ''.join('%0x' % c for c in seq)
 
 
 def dec_16(seq):
@@ -20,9 +29,9 @@ def dec_16(seq):
 def pad(seq, l):
     for count, i in enumerate(seq):
         yield i
-        while count < l - 1:
-            count += 1
-            yield '='
+    while count < l - 1:
+        count += 1
+        yield '='
 
 def pad2(seq, align):
     l = list(seq)
