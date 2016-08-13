@@ -8,11 +8,11 @@ def chunks(seq, size):
     return (seq[i:i+size] for i in range(0, len(seq), size))
 
 
-def encode_16(seq):
+def enc_16(seq):
     return ''.join([hex(c)[2:] for c in seq])
 
 
-def decode_16(seq):
+def dec_16(seq):
     return bytes(''.join(
         chr(int(chunk, 16)) for chunk in chunks(seq, 2)), 'ascii')
 
@@ -44,12 +44,12 @@ def jex(chunk):
     return SYMS[n1]+SYMS[n2]+SYMS[n3]+SYMS[n4]
 
 
-def encode_64(seq):
+def enc_64(seq):
     return bytes(''.join(jex(chunk) for chunk in chunks(pad2(seq, 3), 3)), 'ascii')
 
 
-def encode_16_64(seq):
-    return encode_64(decode_16(seq))
+def enc_16_64(seq):
+    return enc_64(dec_16(seq))
 
 
 def hex_iter(seq):
@@ -64,7 +64,7 @@ def foo(seq):
     length = len(seq)
     for i in range(256):
         try:
-            yield decode_16(xor(seq, ''.join(['%0x' % i] * length)))
+            yield dec_16(xor(seq, ''.join(['%0x' % i] * length)))
         except UnicodeEncodeError:
             continue
 
@@ -102,18 +102,18 @@ if __name__ == '__main__':
     b2 = b'686974207468652062756c6c277320657965'
     c = b'746865206b696420646f6e277420706c6179'
 
-    assert(encode_16_64(base_16) == base_64) 
+    assert(enc_16_64(base_16) == base_64) 
     assert(xor(b1, b2) == c)
-    # plain = decode_16(base_16)
+    # plain = dec_16(base_16)
     # print('plain', plain)
-    # print('b64', encode_64(plain))
-    # encoded_hex = b'1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
+    # print('b64', en_64(plain))
+    # enc_hex = b'1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
 
-    # print(cracked(encoded_hex))
+    # print(cracked(enc_hex))
     # print(bar())
     s=["Burning 'em, if you ain't quick and nimble",
        "I go crazy when I hear a cymbal"]
-    for l in wrap(encode_16(xor_repeat('ICE', s)), 74):
+    for l in wrap(enc_16(xor_repeat('ICE', s)), 74):
         print(l)
 
     # print(xor_repeat('ICE', xor_repeat('ICE', b'Hey now')))
@@ -123,4 +123,4 @@ if __name__ == '__main__':
     s1 = b'this is a test'
     s2 = b'wokka wokka!!!'
 
-    print(h_dist(encode_16(s1), encode_16(s2)))
+    print(h_dist(enc_16(s1), enc_16(s2)))
