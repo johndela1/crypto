@@ -2,6 +2,8 @@
 
 from textwrap import wrap
 from itertools import chain, cycle
+import base64
+from binascii import hexlify, unhexlify
 
 
 def chunks(seq, size):
@@ -17,7 +19,7 @@ def chunks2(seq, size):
         yield bytes(''.join(acc), 'ascii')
 
 
-def dec_16(seq):
+def b16_decoded(seq):
     return bytes(''.join(
         chr(int(chunk, 16)) for chunk in chunks(seq, 2)), 'ascii')
 
@@ -41,42 +43,71 @@ def pad2(seq, align):
 SYMS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 
-def jex(chunk):
+def b64lify(chunk):
     x, y, z = chunk
-    n = x << 16 | y << 8 | z
-    n1 = n >> 18 & 63
-    n2 = n >> 12 & 63
-    n3 = n >> 6 & 63
-    n4 = n & 63
-    return bytes(SYMS[n1]+SYMS[n2]+SYMS[n3]+SYMS[n4], 'ascii')
+    if z == ord('='):
+        n = x
+        n1 = n >> 6 & 63
+        n2 = n & 63
+        return bytes(SYMS[n1]+SYMS[n2]+'==', 'ascii')
+
+    elif y == ord('='):
+        n = x << 8 | y
+        n1 = n >> 12 & 63
+        n2 = n >> 6 & 63
+        n3 = n & 63
+        return bytes(SYMS[n1]+SYMS[n2]+SYMS[n3]+'=', 'ascii')
+    else:
+        n = x << 16 | y << 8 | z
+        n1 = n >> 18 & 63
+        n2 = n >> 12 & 63
+        n3 = n >> 6 & 63
+        n4 = n & 63
+        return bytes(SYMS[n1]+SYMS[n2]+SYMS[n3]+SYMS[n4], 'ascii')
 
 
-def enc_64(seq):
+def b64encoded(seq):
     acc = bytes('', 'ascii')
     for chunk in chunks(pad2(seq, 3), 3):
-        acc += (jex(chunk))
+        acc += (b64lify(chunk))
     return acc
 
 
-def dec_64(seq):
+def b64decoded(seq):
     acc = []
-    for s1, s2, s3, s4 in chunks(pad2(seq,4), 4):
-        x1 = SYMS.index(chr(s1))
-        x2 = SYMS.index(chr(s2))
-        x3 = SYMS.index(chr(s3))
-        x4 = SYMS.index(chr(s4))
-        x = x1 << 18 | x2 << 12 | x3 << 6 | x4
-        r1 = x >> 16 & 255
-        r2 = x >> 8 & 255
-        r3 = x & 255
-        acc.append(r1)
-        acc.append(r2)
-        acc.append(r3)
-    return acc
+    for chunk in chunks(seq, 4):
+        if b'==' in chunk:
+            x1 = SYMS.index(chr(chunk[0]))
+            x2 = SYMS.index(chr(chunk[1]))
+            x = (x1 << 6 | x2) >> 4 
+            r1 = x & 255
+            acc.append(chr(r1))
+        elif b'=' in chunk:
+            x1 = SYMS.index(chr(chunk[0]))
+            x2 = SYMS.index(chr(chunk[1]))
+            x3 = SYMS.index(chr(chunk[2]))
+            x = (x1 << 18 | x2 << 12 | x3 << 6) >> 8
+            r1 = x >> 8 & 255
+            r2 = x & 255
+            acc.append(chr(r1))
+            acc.append(chr(r2))
+        else:
+            x1 = SYMS.index(chr(chunk[0]))
+            x2 = SYMS.index(chr(chunk[1]))
+            x3 = SYMS.index(chr(chunk[2]))
+            x4 = SYMS.index(chr(chunk[3]))
+            x = x1 << 18 | x2 << 12 | x3 << 6 | x4
+            r1 = x >> 16 & 255
+            r2 = x >> 8 & 255
+            r3 = x & 255
+            acc.append(chr(r1))
+            acc.append(chr(r2))
+            acc.append(chr(r3))
+    return bytes(''.join(acc), 'ascii')
 
 
-def enc_16_64(seq):
-    return enc_64(dec_16(seq))
+def b16_64_encoded(seq):
+    return b64encoded(b16_decoded(seq))
 
 
 def xor(s1, s2):
@@ -87,33 +118,34 @@ def xor_repeat(key, lines):
     c = cycle(ord(k) for k in key)
     return bytes(x ^ y for x, y in zip(lines, c))
 
+
 def h_dist(s1, s2):
     return sum(bin(e).count('1') for e in xor(s1, s2))
 
 
-def key_length_guess(seq):
+def key_size_guess(seq):
     acc = []
     for size in range(2, 10):
         s1 = seq[:size]
         s2 = seq[size:size*2]
         dist = h_dist(s1, s2) / size
         acc.append((dist, size))
-#    import pdb;pdb.set_trace()
-    return sorted(acc)[:2]
+    return sorted(acc)[0][1]
+
 
 def foo(seq):
     length = len(seq)
     for i in range(256):
         try:
-            yield xor(seq, [i] * length)
+            yield xor(seq, [i] * length), i
         except UnicodeEncodeError:
             continue
 
 
 def cracked(seq):
     try:
-        return sorted(((e, str(e).count(' '))
-                       for e in foo(seq)), key=lambda x: -x[1])[0]
+        return sorted(((e, str(e).count(' '), k)
+                       for e, k in foo(seq)), key=lambda x: -x[1])[0]
     except IndexError:
         return None, None
 
@@ -127,6 +159,15 @@ def bar():
                 print(msg)
 
 
+def transpose(bts, key_size):
+#    return bytes(zip(*chunks(bts, key_size)))
+    acc = [[] for _ in range(key_size)]
+    for n, chunk in enumerate(chunks(bts, key_size)):
+        for m, val in enumerate(chunk):
+            acc[m].append(val)
+    return acc
+
+
 if __name__ == '__main__':
     s1 = b'this is a test'
     s2 = b'wokka wokka!!!'
@@ -136,7 +177,7 @@ if __name__ == '__main__':
     b1 =  bytes.fromhex('1c0111001f010100061a024b53535009181c')
     b2 = bytes.fromhex('686974207468652062756c6c277320657965')
     c = bytes.fromhex('746865206b696420646f6e277420706c6179')
-    assert(enc_16_64(base_16) == base_64) 
+   # assert(enc_16_64(base_16) == base_64) 
     assert(xor(b1, b2) == c)
 
     lines = b"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
@@ -144,12 +185,54 @@ if __name__ == '__main__':
     cypher_text = xor_repeat('ICE', lines)
     assert(cypher_text.hex() == ref)
     assert(xor_repeat('ICE', cypher_text) == lines)
+    msgs = [b'heynowss', b'heynows', b'heynow']
+    for msg in msgs:
+        cypher_text_ref = base64.b64encode(msg)
+        cypher_text = b64encoded(msg)
+        print(cypher_text_ref, cypher_text)
+        assert(b64decoded(cypher_text_ref) == base64.b64decode(cypher_text_ref))
+        #assert(cypher_text_ref == cypher_text)
 
-    #enc_hex = b'1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
-    enc_b64 = b'HUIfTQsPAh9PE048GmllH0kcDk4TAQsHThsBFkU2AB4BSWQgVB0dQzNTTmVS'
-    bts = dec_64(enc_b64)
+    with open('6.txt') as f:
+        msg = bytes([ord(x) for x in f.read().replace('\n', '')])
+
+    ref = base64.b64decode(msg)
+    bts = b64decoded(msg)
+#    print (ref, '\n' +  bts)
+
+#    print("ref   ", ref.hex()[:50], '\ncalcul', bts.hex()[:50])
+    ct = b'HUIfTQsPAh9PE048GmllH0kcDk4TAQsHThsBFkU2AB4BSWQgVB0dQzNTTmVS'
+    ct = b64encoded(b'1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736')
+    import pdb;pdb.set_trace()
+
+    bts = b64decoded(ct)
+    print(cracked(unhexlify(bts)))
+    exit()
+    print (bts)
+
+    
+    print(cracked(bts))
+    exit()
+    #print("decodeer test", bts)
+    bts_in = unhexlify('1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736')
+
+    print('-----') 
+    print(hexlify(b64decoded(ct)))
+    print(base64.b64decode(ct))
+    exit()
+
     #    print('decrypt', xor_repeat('ICE', cypher_text))
-    bts = xor_repeat('ICE', b'Since we are all here working on the farm we will talk a lot.  This is a test of some new crypto system')
+    # bts = xor_repeat('ICE', b'Since we are all here working on the farm we will talk a lot.  This is a test of some new crypto system')
 
-    print('decrypt', xor_repeat('ICEMAN', bts))
-    print(key_length_guess(bts))
+    #    print('decrypt', xor_repeat('ICEMAN', bts))
+    key_size = key_size_guess(bts)
+#    print(bts)
+    tran = transpose(bts,  key_size)
+
+    from collections import defaultdict
+    d = defaultdict(int)
+    for tr in tran:
+        msg, score, key = cracked(tr)
+        d[key] += score
+
+    print(d)
