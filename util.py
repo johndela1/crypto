@@ -160,7 +160,7 @@ def bar():
 
 
 def transpose(bts, key_size):
-#    return bytes(zip(*chunks(bts, key_size)))
+    return bytes(zip(*chunks(bts, key_size)))
     acc = [[] for _ in range(key_size)]
     for n, chunk in enumerate(chunks(bts, key_size)):
         for m, val in enumerate(chunk):
