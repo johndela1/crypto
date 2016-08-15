@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from textwrap import wrap
-from itertools import chain, cycle
+from itertools import cycle
 import base64
 from binascii import hexlify, unhexlify
 
@@ -145,8 +145,10 @@ def xor_brute(seq):
 def cracked(seq):
     try:
         return sorted(
-            ((res, str(res).count(' '), key) for res, key in xor_brute(seq)),
-            key=lambda x: -[1]
+            ((res, str(res).count(' '), key)
+             for res, key in xor_brute(seq)),
+            key=lambda x: x[1],
+            reverse=True,
             )[0]
     except IndexError:
         return None, None, None
