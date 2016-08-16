@@ -10,18 +10,13 @@ def chunks(seq, size):
     return (seq[i:i+size] for i in range(0, len(seq), size))
 
 
-def chunks2(seq, size):
+def chunks_lazy(seq, size):
     itt = iter(seq)
     while(True):
-        acc = []
-        for e in range(size):
-            acc.append(chr(next(itt)))
-        yield bytes(''.join(acc), 'ascii')
-
-
-def b16_decoded(seq):
-    return bytes(''.join(
-        chr(int(chunk, 16)) for chunk in chunks(seq, 2)), 'ascii')
+        yield bytes(''.join([chr(next(itt))
+                             for _ in range(size)]),
+                    'ascii',
+                    )
 
 
 def pad(seq, l):
@@ -104,10 +99,6 @@ def b64decoded(seq):
             acc.append(chr(r2))
             acc.append(chr(r3))
     return bytes(''.join(acc), 'ascii')
-
-
-def b16_64_encoded(seq):
-    return b64encoded(b16_decoded(seq))
 
 
 def xor(s1, s2):
